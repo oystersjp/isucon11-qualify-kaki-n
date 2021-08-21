@@ -1194,7 +1194,7 @@ func BulkInsertIsuCondition() {
 
 	log.Print("BulkInsertIsuCondition: 頑張るぞー")
 
-	var insertMap []map[string]interface{}
+	insertMap := make([]map[string]interface{}, len(inserts))
 	for i, v := range inserts {
 		insertMap[i] = map[string]interface{}{
 			"JiaIsuUUID": v.JiaIsuUUID,
