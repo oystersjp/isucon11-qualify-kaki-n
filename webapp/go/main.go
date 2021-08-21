@@ -1227,6 +1227,7 @@ func BulkInsertIsuCondition() {
 	log.Print("BulkInsertIsuCondition: 頑張るぞー")
 
 	insertMap := make([]map[string]interface{}, len(inserts))
+	uuids = []int
 	for i, v := range inserts {
 		insertMap[i] = map[string]interface{}{
 			"JiaIsuUUID": v.JiaIsuUUID,
@@ -1235,6 +1236,7 @@ func BulkInsertIsuCondition() {
 			"Condition":  v.Condition,
 			"Message":    v.Message,
 		}
+		uuids = append(uuids, v.JiaIsuUUID)
 	}
 
 	q := "INSERT INTO isu_condition (`jia_isu_uuid`, `timestamp`, `is_sitting`, `condition`, `message`) VALUES (:JiaIsuUUID, :Timestamp, :IsSitting, :Condition, :Message);"
@@ -1247,6 +1249,7 @@ func BulkInsertIsuCondition() {
 		isuConditionQueueLock.Lock()
 		isuConditionQueue = append(isuConditionQueue, inserts...)
 		isuConditionQueueLock.Unlock()
+		updatelastIsuConditionMap(uuids)
 		return
 	}
 	if err := tx.Commit(); err != nil {
@@ -1258,6 +1261,31 @@ func BulkInsertIsuCondition() {
 		isuConditionQueueLock.Unlock()
 		return
 	}
+}
+
+func updatelastIsuConditionMap(uuids []int) {
+	lastIsuConditionMapLock.Lock()
+	defer lastIsuConditionMapLock.Unlock()
+
+	var lastConditions []IsuCondition
+	q = "
+select
+DISTINCT 
+first_value(isu_condition.id) over (partition by isu_condition.jia_isu_uuid ORDER BY isu_condition.timestamp DESC) AS `id`,
+first_value(isu_condition.jia_isu_uuid) over (partition by isu_condition.jia_isu_uuid ORDER BY isu_condition.timestamp DESC) AS `jia_isu_uuid`,
+first_value(isu_condition.timestamp) over (partition by isu_condition.jia_isu_uuid ORDER BY isu_condition.timestamp DESC) AS `timestamp`,
+first_value(isu_condition.is_sitting) over (partition by isu_condition.jia_isu_uuid ORDER BY isu_condition.timestamp DESC) AS `is_sitting`,
+first_value(isu_condition.`condition`) over (partition by isu_condition.jia_isu_uuid ORDER BY isu_condition.timestamp DESC) AS `condition`,
+first_value(isu_condition.message) over (partition by isu_condition.jia_isu_uuid ORDER BY isu_condition.timestamp DESC) AS `message`,
+first_value(isu_condition.created_at) over (partition by isu_condition.jia_isu_uuid ORDER BY isu_condition.timestamp DESC) AS `created_at`
+FROM isu_condition where jia_isu_uuid in (?)"
+	
+	if err := db.Select(&lastConditions, q, uuids); err != nil {
+			log.Print("error", err)
+		}
+		for _, ic := range lastConditions{
+			isuConditionList[ic.jia_isu_uuid] = ic
+		}
 }
 
 // POST /api/condition/:jia_isu_uuid
