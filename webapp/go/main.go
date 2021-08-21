@@ -333,13 +333,14 @@ func postInitialize(c echo.Context) error {
 	}
 
 	type icon struct {
-		JiaUserId  string `db:"user_id"`
+		JiaUserId  string `db:"jia_user_id"`
 		JiaIsuUuid string `db:"jia_isu_uuid"`
-		Image      []byte `db:"byte"`
+		Image      []byte `db:"image"`
 	}
 	var icons []icon
 	if err := db.Select(&icons, "SELECT `jia_user_id`, `jia_isu_uuid`, `image` FROM `isu`"); err != nil {
-		return err
+		c.Logger().Errorf("db error : %v", err)
+		return c.NoContent(http.StatusInternalServerError)
 	}
 
 	for _, i := range icons {
