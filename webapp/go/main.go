@@ -290,17 +290,6 @@ func getUserIDFromSession(c echo.Context) (string, int, error) {
 	}
 
 	jiaUserID := _jiaUserID.(string)
-	var count int
-
-	err = db.Get(&count, "SELECT COUNT(*) FROM `user` WHERE `jia_user_id` = ?",
-		jiaUserID)
-	if err != nil {
-		return "", http.StatusInternalServerError, fmt.Errorf("db error: %v", err)
-	}
-
-	if count == 0 {
-		return "", http.StatusUnauthorized, fmt.Errorf("not found: user")
-	}
 
 	return jiaUserID, 0, nil
 }
@@ -1136,7 +1125,7 @@ func getTrend(c echo.Context) error {
 		for _, isu := range isuList {
 			conditions := []IsuCondition{}
 			err = db.Select(&conditions,
-				"SELECT * FROM `isu_condition` WHERE `jia_isu_uuid` = ? ORDER BY timestamp DESC",
+				"SELECT * FROM `isu_condition` WHERE `jia_isu_uuid` = ? ORDER BY timestamp DESC LIMIT 1",
 				isu.JIAIsuUUID,
 			)
 			if err != nil {

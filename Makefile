@@ -7,6 +7,7 @@ build:
 
 stop-services:
 	sudo systemctl stop nginx
+	sudo systemctl stop varnish 
 	sudo systemctl stop isucondition.go
 	ssh isucon@192.168.0.13 "sudo systemctl stop mysql"
 
@@ -14,6 +15,7 @@ start-services:
 	ssh isucon@192.168.0.13 "sudo systemctl start mysql"
 	sleep 5
 	sudo systemctl start isucondition.go
+	sudo systemctl start varnish 
 	sudo systemctl start nginx
 
 truncate-logs:
