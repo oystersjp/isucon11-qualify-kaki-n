@@ -50,7 +50,9 @@ var (
 
 	jiaJWTSigningKey *ecdsa.PublicKey
 
-	postIsuConditionTargetBaseURL string // JIAへのactivate時に登録する，ISUがconditionを送る先のURL
+	postIsuConditionTargetBaseURL string
+	lastIsuConditionMap           = map[string]IsuCondition{}
+	lastIsuConditionMapLock       = sync.RWMutex{}
 )
 
 type Config struct {
@@ -332,9 +334,49 @@ func postInitialize(c echo.Context) error {
 		return c.NoContent(http.StatusInternalServerError)
 	}
 
+	setlastIsuConditionMap()
+
 	return c.JSON(http.StatusOK, InitializeResponse{
 		Language: "go",
 	})
+}
+
+func setlastIsuConditionMap() {
+	lastIsuConditionMapLock.Lock()
+	defer lastIsuConditionMapLock.Unlock()
+
+	lastIsuConditionMap = map[string]IsuCondition{}
+
+	var lastConditions []IsuCondition
+	q := "select DISTINCT first_value(isu_condition.id) over (partition by isu_condition.jia_isu_uuid ORDER BY isu_condition.timestamp DESC) AS `id`, first_value(isu_condition.jia_isu_uuid) over (partition by isu_condition.jia_isu_uuid ORDER BY isu_condition.timestamp DESC) AS `jia_isu_uuid`, first_value(isu_condition.timestamp) over (partition by isu_condition.jia_isu_uuid ORDER BY isu_condition.timestamp DESC) AS `timestamp`, first_value(isu_condition.is_sitting) over (partition by isu_condition.jia_isu_uuid ORDER BY isu_condition.timestamp DESC) AS `is_sitting`, first_value(isu_condition.`condition`) over (partition by isu_condition.jia_isu_uuid ORDER BY isu_condition.timestamp DESC) AS `condition`, first_value(isu_condition.message) over (partition by isu_condition.jia_isu_uuid ORDER BY isu_condition.timestamp DESC) AS `message`, first_value(isu_condition.created_at) over (partition by isu_condition.jia_isu_uuid ORDER BY isu_condition.timestamp DESC) AS `created_at` FROM isu_condition"
+
+	if err := db.Get(&lastConditions, q); err != nil {
+		log.Print("error", err)
+	}
+	for _, ic := range lastConditions {
+		lastIsuConditionMap[ic.JIAIsuUUID] = ic
+	}
+}
+
+func getlastConditionByJIAIsuUUID(c echo.Context, uuid string) *IsuCondition {
+	lastIsuConditionMapLock.RLock()
+	if last_condition, ok := lastIsuConditionMap[uuid]; ok {
+		lastIsuConditionMapLock.RUnlock()
+		return &last_condition
+	}
+	lastIsuConditionMapLock.RUnlock()
+
+	var lastCondition IsuCondition
+	err := db.Get(&lastCondition, "SELECT * FROM `isu_condition` WHERE `jia_isu_uuid` = ? ORDER BY `timestamp` DESC LIMIT 1",
+		uuid)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil
+		} else {
+			c.Logger().Errorf("db error: %v", err)
+		}
+	}
+	return &lastCondition
 }
 
 // POST /api/auth
@@ -474,15 +516,11 @@ func getIsuList(c echo.Context) error {
 	for _, isu := range isuList {
 		var lastCondition IsuCondition
 		foundLastCondition := true
-		err = tx.Get(&lastCondition, "SELECT * FROM `isu_condition` WHERE `jia_isu_uuid` = ? ORDER BY `timestamp` DESC LIMIT 1",
-			isu.JIAIsuUUID)
-		if err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				foundLastCondition = false
-			} else {
-				c.Logger().Errorf("db error: %v", err)
-				return c.NoContent(http.StatusInternalServerError)
-			}
+		l := getlastConditionByJIAIsuUUID(c, isu.JIAIsuUUID)
+		if l == nil {
+			foundLastCondition = false
+		} else {
+			lastCondition = *l
 		}
 
 		var formattedCondition *GetIsuConditionResponse
@@ -1103,14 +1141,8 @@ func getTrend(c echo.Context) error {
 		characterCriticalIsuConditions := []*TrendCondition{}
 		for _, isu := range isuList {
 			conditions := []IsuCondition{}
-			err = db.Select(&conditions,
-				"SELECT * FROM `isu_condition` WHERE `jia_isu_uuid` = ? ORDER BY timestamp DESC LIMIT 1",
-				isu.JIAIsuUUID,
-			)
-			if err != nil {
-				c.Logger().Errorf("db error: %v", err)
-				return c.NoContent(http.StatusInternalServerError)
-			}
+			l := getlastConditionByJIAIsuUUID(c, isu.JIAIsuUUID)
+			conditions = append(conditions, *l)
 
 			if len(conditions) > 0 {
 				isuLastCondition := conditions[0]
@@ -1184,6 +1216,7 @@ func BulkInsertIsuCondition() {
 	log.Print("BulkInsertIsuCondition: 頑張るぞー")
 
 	insertMap := make([]map[string]interface{}, len(inserts))
+	var uuids []string
 	for i, v := range inserts {
 		insertMap[i] = map[string]interface{}{
 			"JiaIsuUUID": v.JiaIsuUUID,
@@ -1192,6 +1225,7 @@ func BulkInsertIsuCondition() {
 			"Condition":  v.Condition,
 			"Message":    v.Message,
 		}
+		uuids = append(uuids, v.JiaIsuUUID)
 	}
 
 	q := "INSERT INTO isu_condition (`jia_isu_uuid`, `timestamp`, `is_sitting`, `condition`, `message`) VALUES (:JiaIsuUUID, :Timestamp, :IsSitting, :Condition, :Message);"
@@ -1204,6 +1238,7 @@ func BulkInsertIsuCondition() {
 		isuConditionQueueLock.Lock()
 		isuConditionQueue = append(isuConditionQueue, inserts...)
 		isuConditionQueueLock.Unlock()
+		updatelastIsuConditionMap(uuids)
 		return
 	}
 	if err := tx.Commit(); err != nil {
@@ -1214,6 +1249,27 @@ func BulkInsertIsuCondition() {
 		isuConditionQueue = append(isuConditionQueue, inserts...)
 		isuConditionQueueLock.Unlock()
 		return
+	}
+}
+
+func updatelastIsuConditionMap(uuids []string) {
+	var lastConditions []IsuCondition
+	q := "select DISTINCT first_value(isu_condition.id) over (partition by isu_condition.jia_isu_uuid ORDER BY isu_condition.timestamp DESC) AS `id`, first_value(isu_condition.jia_isu_uuid) over (partition by isu_condition.jia_isu_uuid ORDER BY isu_condition.timestamp DESC) AS `jia_isu_uuid`, first_value(isu_condition.timestamp) over (partition by isu_condition.jia_isu_uuid ORDER BY isu_condition.timestamp DESC) AS `timestamp`, first_value(isu_condition.is_sitting) over (partition by isu_condition.jia_isu_uuid ORDER BY isu_condition.timestamp DESC) AS `is_sitting`, first_value(isu_condition.`condition`) over (partition by isu_condition.jia_isu_uuid ORDER BY isu_condition.timestamp DESC) AS `condition`, first_value(isu_condition.message) over (partition by isu_condition.jia_isu_uuid ORDER BY isu_condition.timestamp DESC) AS `message`, first_value(isu_condition.created_at) over (partition by isu_condition.jia_isu_uuid ORDER BY isu_condition.timestamp DESC) AS `created_at` FROM isu_condition where jia_isu_uuid in (?)"
+
+	q, params, err := sqlx.In(q, uuids)
+	if err != nil {
+		log.Print("error", err)
+		return
+	}
+	if err := db.Select(&lastConditions, q, params...); err != nil {
+		log.Print("error", err)
+		return
+	}
+
+	lastIsuConditionMapLock.Lock()
+	defer lastIsuConditionMapLock.Unlock()
+	for _, ic := range lastConditions {
+		lastIsuConditionMap[ic.JIAIsuUUID] = ic
 	}
 }
 
