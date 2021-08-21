@@ -197,8 +197,8 @@ func (mc *MySQLConnectionEnv) ConnectDB() (*sqlx.DB, error) {
 }
 
 var (
-	IsuIconMap     map[string][]byte
-	IsuIconMapLock sync.RWMutex
+	IsuIconMap     = map[string][]byte{}
+	IsuIconMapLock = sync.RWMutex{}
 )
 
 func init() {
