@@ -63,6 +63,10 @@ regexp = 'GET /api/isu/[a-z0-9-]+/icon'
 name = "GET /api/isu/[a-z0-9-]+/icon"
 
 [[bundle]]
+regexp = 'GET /api/isu/[a-z0-9-]+/graph'
+name = "GET /api/isu/[a-z0-9-]+/graph"
+
+[[bundle]]
 regexp = 'GET /api/condition/[a-z0-9-]'
 name = "GET /api/condition/[a-z0-9-]"
 
