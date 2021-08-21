@@ -771,12 +771,12 @@ func getIsuIcon(c echo.Context) error {
 	jiaIsuUUID := c.Param("jia_isu_uuid")
 
 	IsuIconMapLock.RLock()
+	defer IsuIconMapLock.RUnlock()
 	name := fmt.Sprintf("./icons/%s__%s", jiaUserID, jiaIsuUUID)
 	image, ok := IsuIconMap[name]
 	if !ok {
 		return c.String(http.StatusNotFound, "not found: isu")
 	}
-	IsuIconMapLock.RUnlock()
 
 	return c.Blob(http.StatusOK, "", image)
 }
