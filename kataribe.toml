@@ -51,24 +51,28 @@ duration_index = 10
 # You can aggregate requests by regular expression
 # For overview of regexp syntax: https://golang.org/pkg/regexp/syntax/
 [[bundle]]
+regexp = 'GET /\?jwt=[a-zA-z0-9.]+'
+name = "GET /?jwt=[a-zA-z0-9.]+"
+
+[[bundle]]
 regexp = 'GET /api/isu/[a-z0-9-]'
 name = "GET /api/isu/[a-z0-9-]"
 
 [[bundle]]
-regexp = 'GET /api/condition/[a-z0-9-]?condition_level=info%2Cwarning%2Ccritical&end_time=[0-9]'
-name = "GET /api/condition/[a-z0-9-]?condition_level=info%2Cwarning%2Ccritical&end_time=[0-9]"
+regexp = 'GET /api/isu/[a-z0-9-]+/icon'
+name = "GET /api/isu/[a-z0-9-]+/icon"
 
 [[bundle]]
 regexp = 'GET /api/condition/[a-z0-9-]'
 name = "GET /api/condition/[a-z0-9-]"
 
 [[bundle]]
-regexp = 'POST /api/condition/[a-z0-9-]'
-name = "POST /api/condition/[a-z0-9-]"
+regexp = 'GET /api/condition/[a-z0-9-]?condition_level=info%2Cwarning%2Ccritical&end_time=[0-9]'
+name = "GET /api/condition/[a-z0-9-]?condition_level=info%2Cwarning%2Ccritical&end_time=[0-9]"
 
 [[bundle]]
-regexp = 'GET /\?jwt=[a-zA-z0-9.]+'
-name = "GET /?jwt=[a-zA-z0-9.]+"
+regexp = 'POST /api/condition/[a-z0-9-]'
+name = "POST /api/condition/[a-z0-9-]"
 
 [[bundle]]
 regexp = 'GET /isu/[a-z0-9-]+/condition'
