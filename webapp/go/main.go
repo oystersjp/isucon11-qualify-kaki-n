@@ -1196,16 +1196,11 @@ func BulkInsertIsuCondition() {
 
 	q := `
 				INSERT INTO isu_condition (jia_isu_uuid, timestamp, is_sitting, condition, message)
-				VALUES (?, ?, ?, ?, ?)
+				VALUES (:jia_isu_uuid, :timestamp, :is_sitting, :condition, :message)
 			`
-	q, params, err := sqlx.In(q, inserts)
-	if err != nil {
-		log.Print("error", err)
-		return
-	}
 
 	tx := db.MustBegin()
-	if _, err := tx.Exec(q, params...); err != nil {
+	if _, err := tx.NamedExec(q, inserts); err != nil {
 		log.Print("error", err)
 		_ = tx.Rollback()
 
