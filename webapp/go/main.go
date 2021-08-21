@@ -52,6 +52,7 @@ var (
 
 	postIsuConditionTargetBaseURL string // JIAへのactivate時に登録する，ISUがconditionを送る先のURL
 	lastIsuConditionMap           map[string]IsuCondition{}
+	lastIsuConditionMapLock	sync.RWMutex{}
 )
 
 type Config struct {
@@ -352,6 +353,9 @@ func postInitialize(c echo.Context) error {
 }
 
 func setlastIsuConditionMap() {
+	lastIsuConditionMapLock.Lock()
+	defer lastIsuConditionMapLock.Unlock()
+	
 	isuConditionList = map[string]IsuCondition{}
 
 	var lastConditions []IsuCondition
