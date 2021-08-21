@@ -320,8 +320,8 @@ func updateIsuIconMap() {
 	}
 	var icons []icon
 	if err := db.Select(&icons, "SELECT `jia_user_id`, `jia_isu_uuid`, `image` FROM `isu`"); err != nil {
-		c.Logger().Errorf("db error : %v", err)
-		return c.NoContent(http.StatusInternalServerError)
+		log.Printf("db error : %v", err)
+		return
 	}
 	IsuIconMapLock.Lock()
 	IsuIconMap := map[string][]byte{}
