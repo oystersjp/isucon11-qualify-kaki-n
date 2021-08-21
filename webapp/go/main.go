@@ -51,6 +51,7 @@ var (
 	jiaJWTSigningKey *ecdsa.PublicKey
 
 	postIsuConditionTargetBaseURL string // JIAへのactivate時に登録する，ISUがconditionを送る先のURL
+	lastIsuConditionMap           map[string]IsuCondition{}
 )
 
 type Config struct {
@@ -343,9 +344,23 @@ func postInitialize(c echo.Context) error {
 		return c.NoContent(http.StatusInternalServerError)
 	}
 
+	setlastIsuConditionMap()
+
 	return c.JSON(http.StatusOK, InitializeResponse{
 		Language: "go",
 	})
+}
+
+func setlastIsuConditionMap() {
+	isuConditionList = map[string]IsuCondition{}
+
+	var lastConditions []IsuCondition
+	if err = db.Get(&lastConditions, "SELECT * FROM `isu_condition`"); err != nil {
+		c.Logger().Errorf("db error : %v", err)
+	}
+	for _, ic := range lastConditions{
+		isuConditionList[ic.jia_isu_uuid] = ic
+	}
 }
 
 // POST /api/auth
