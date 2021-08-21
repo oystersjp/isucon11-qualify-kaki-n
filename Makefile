@@ -1,6 +1,6 @@
 .PHONY: gogo build stop-services start-services truncate-logs kataribe
 
-gogo: stop-services build kenji minako  truncate-logs start-services
+gogo: stop-services build truncate-logs start-services
 
 build:
 	cd webapp/go && go build . -o isucondition
