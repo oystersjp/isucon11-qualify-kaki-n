@@ -475,7 +475,7 @@ func getIsuList(c echo.Context) error {
 	for _, isu := range isuList {
 		var lastCondition IsuCondition
 		foundLastCondition := true
-		err = tx.Get(&lastCondition, "SELECT id, jia_isu_uuid, timestamp, is_sitting, condition, message, created_at FROM `isu_condition` WHERE `jia_isu_uuid` = ? ORDER BY `minus_timestamp` ASC LIMIT 1",
+		err = tx.Get(&lastCondition, "SELECT `id`, `jia_isu_uuid`, `timestamp`, `is_sitting`, `condition`, `message`, `created_at` FROM `isu_condition` WHERE `jia_isu_uuid` = ? ORDER BY `minus_timestamp` ASC LIMIT 1",
 			isu.JIAIsuUUID)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
@@ -782,7 +782,7 @@ func generateIsuGraphResponse(tx *sqlx.Tx, jiaIsuUUID string, graphDate time.Tim
 	var startTimeInThisHour time.Time
 	var condition IsuCondition
 
-	rows, err := tx.Queryx("SELECT id, jia_isu_uuid, timestamp, is_sitting, condition, message, created_at FROM `isu_condition` WHERE `jia_isu_uuid` = ? ORDER BY `timestamp` ASC", jiaIsuUUID)
+	rows, err := tx.Queryx("SELECT `id`, `jia_isu_uuid`, `timestamp`, `is_sitting`, `condition`, `message`, `created_at` FROM `isu_condition` WHERE `jia_isu_uuid` = ? ORDER BY `timestamp` ASC", jiaIsuUUID)
 	if err != nil {
 		return nil, fmt.Errorf("db error: %v", err)
 	}
@@ -1011,14 +1011,14 @@ func getIsuConditionsFromDB(db *sqlx.DB, jiaIsuUUID string, endTime time.Time, c
 
 	if startTime.IsZero() {
 		err = db.Select(&conditions,
-			"SELECT id, jia_isu_uuid, timestamp, is_sitting, condition, message, created_at FROM `isu_condition` WHERE `jia_isu_uuid` = ?"+
+			"SELECT `id`, `jia_isu_uuid`, `timestamp`, `is_sitting`, `condition`, `message`, `created_at` FROM `isu_condition` WHERE `jia_isu_uuid` = ?"+
 				"	AND `timestamp` < ?"+
 				"	ORDER BY `minus_timestamp` ASC",
 			jiaIsuUUID, endTime,
 		)
 	} else {
 		err = db.Select(&conditions,
-			"SELECT id, jia_isu_uuid, timestamp, is_sitting, condition, message, created_at FROM `isu_condition` WHERE `jia_isu_uuid` = ?"+
+			"SELECT `id`, `jia_isu_uuid`, `timestamp`, `is_sitting`, `condition`, `message`, `created_at` FROM `isu_condition` WHERE `jia_isu_uuid` = ?"+
 				"	AND `timestamp` < ?"+
 				"	AND ? <= `timestamp`"+
 				"	ORDER BY `minus_timestamp` ASC",
@@ -1105,7 +1105,7 @@ func getTrend(c echo.Context) error {
 		for _, isu := range isuList {
 			conditions := []IsuCondition{}
 			err = db.Select(&conditions,
-				"SELECT id, jia_isu_uuid, timestamp, is_sitting, condition, message, created_at FROM `isu_condition` WHERE `jia_isu_uuid` = ? ORDER BY minus_timestamp ASC",
+				"SELECT `id`, `jia_isu_uuid`, `timestamp`, `is_sitting`, `condition`, `message`, `created_at` FROM `isu_condition` WHERE `jia_isu_uuid` = ? ORDER BY minus_timestamp ASC",
 				isu.JIAIsuUUID,
 			)
 			if err != nil {
