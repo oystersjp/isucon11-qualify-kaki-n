@@ -1195,9 +1195,9 @@ func BulkInsertIsuCondition() {
 	log.Print("BulkInsertIsuCondition: 頑張るぞー")
 
 	q := `
-				INSERT INTO isu_condition (jia_isu_uuid, timestamp, is_sitting, condition, message)
-				VALUES (:jia_isu_uuid, :timestamp, :is_sitting, :condition, :message)
-			`
+		INSERT INTO isu_condition (jia_isu_uuid, timestamp, is_sitting, condition, message)
+		VALUES (:jia_isu_uuid, :timestamp, :is_sitting, :condition, :message)
+	`
 
 	tx := db.MustBegin()
 	if _, err := tx.NamedExec(q, inserts); err != nil {
