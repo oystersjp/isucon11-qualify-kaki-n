@@ -518,9 +518,11 @@ func getIsuList(c echo.Context) error {
 	for _, isu := range isuList {
 		var lastCondition IsuCondition
 		foundLastCondition := true
-		lastCondition = *getlastConditionByJIAIsuUUID(c, isu.JIAIsuUUID)
-		if &lastCondition == nil {
+		l := getlastConditionByJIAIsuUUID(c, isu.JIAIsuUUID)
+		if l == nil {
 			foundLastCondition = false
+		} else {
+			lastCondition = *l
 		}
 
 		var formattedCondition *GetIsuConditionResponse
