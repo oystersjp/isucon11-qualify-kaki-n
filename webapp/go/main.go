@@ -369,7 +369,7 @@ first_value(isu_condition.is_sitting) over (partition by isu_condition.jia_isu_u
 first_value(isu_condition.`condition`) over (partition by isu_condition.jia_isu_uuid ORDER BY isu_condition.timestamp DESC) AS `condition`,
 first_value(isu_condition.message) over (partition by isu_condition.jia_isu_uuid ORDER BY isu_condition.timestamp DESC) AS `message`,
 first_value(isu_condition.created_at) over (partition by isu_condition.jia_isu_uuid ORDER BY isu_condition.timestamp DESC) AS `created_at`
-FROM isu_condition limit 3;
+FROM isu_condition;
 "
 
 	if err = db.Get(&lastConditions, q); err != nil {
@@ -1247,7 +1247,6 @@ func BulkInsertIsuCondition() {
 		isuConditionQueueLock.Lock()
 		isuConditionQueue = append(isuConditionQueue, inserts...)
 		isuConditionQueueLock.Unlock()
-		setlastIsuConditionMap()
 		return
 	}
 	if err := tx.Commit(); err != nil {
