@@ -326,7 +326,7 @@ func updateIsuIconMap() {
 	IsuIconMapLock.Lock()
 	IsuIconMap = map[string][]byte{}
 	for _, i := range icons {
-		name := fmt.Sprintf("./icons/%s__%s", i.JiaUserId, i.JiaIsuUuid)
+		name := fmt.Sprintf("%s__%s", i.JiaUserId, i.JiaIsuUuid)
 		IsuIconMap[name] = i.Image
 	}
 	IsuIconMapLock.Unlock()
@@ -656,7 +656,7 @@ func postIsu(c echo.Context) error {
 		return c.NoContent(http.StatusInternalServerError)
 	}
 	IsuIconMapLock.Lock()
-	name := fmt.Sprintf("./icons/%s__%s", jiaUserID, jiaIsuUUID)
+	name := fmt.Sprintf("%s__%s", jiaUserID, jiaIsuUUID)
 	IsuIconMap[name] = image
 	IsuIconMapLock.Unlock()
 
@@ -772,7 +772,7 @@ func getIsuIcon(c echo.Context) error {
 
 	IsuIconMapLock.RLock()
 	defer IsuIconMapLock.RUnlock()
-	name := fmt.Sprintf("./icons/%s__%s", jiaUserID, jiaIsuUUID)
+	name := fmt.Sprintf("%s__%s", jiaUserID, jiaIsuUUID)
 	image, ok := IsuIconMap[name]
 	if !ok {
 		return c.String(http.StatusNotFound, "not found: isu")
