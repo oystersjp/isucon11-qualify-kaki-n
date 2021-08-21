@@ -1194,13 +1194,24 @@ func BulkInsertIsuCondition() {
 
 	log.Print("BulkInsertIsuCondition: 頑張るぞー")
 
+	var insertMap []map[string]interface{}
+	for i, v := range inserts {
+		insertMap[i] = map[string]interface{}{
+			"JiaIsuUUID": v.JiaIsuUUID,
+			"Timestamp":  v.Timestamp,
+			"IsSitting":  v.IsSitting,
+			"Condition":  v.Condition,
+			"Message":    v.Message,
+		}
+	}
+
 	q := `
 		INSERT INTO isu_condition (jia_isu_uuid, timestamp, is_sitting, condition, message)
 		VALUES (:JiaIsuUUID, :Timestamp, :IsSitting, :Condition, :Message)
 	`
 
 	tx := db.MustBegin()
-	if _, err := tx.NamedExec(q, inserts); err != nil {
+	if _, err := tx.NamedExec(q, insertMap); err != nil {
 		log.Print("error", err)
 		_ = tx.Rollback()
 
