@@ -196,6 +196,11 @@ func (mc *MySQLConnectionEnv) ConnectDB() (*sqlx.DB, error) {
 	return sqlx.Open("mysql", dsn)
 }
 
+var (
+	IsuIconMap     = map[string][]byte{}
+	IsuIconMapLock = sync.RWMutex{}
+)
+
 func init() {
 	sessionStore = sessions.NewCookieStore([]byte(getEnv("SESSION_KEY", "isucondition")))
 
@@ -266,8 +271,9 @@ func main() {
 		return
 	}
 
-	serverPort := fmt.Sprintf(":%v", getEnv("SERVER_APP_PORT", "3000"))
+	updateIsuIconMap()
 
+	serverPort := fmt.Sprintf(":%v", getEnv("SERVER_APP_PORT", "3000"))
 	e.Logger.Fatal(e.Start(serverPort))
 }
 
@@ -306,6 +312,26 @@ func getJIAServiceURL(tx *sqlx.Tx) string {
 	return config.URL
 }
 
+func updateIsuIconMap() {
+	type icon struct {
+		JiaUserId  string `db:"jia_user_id"`
+		JiaIsuUuid string `db:"jia_isu_uuid"`
+		Image      []byte `db:"image"`
+	}
+	var icons []icon
+	if err := db.Select(&icons, "SELECT `jia_user_id`, `jia_isu_uuid`, `image` FROM `isu`"); err != nil {
+		log.Printf("db error : %v", err)
+		return
+	}
+	IsuIconMapLock.Lock()
+	IsuIconMap = map[string][]byte{}
+	for _, i := range icons {
+		name := fmt.Sprintf("%s__%s", i.JiaUserId, i.JiaIsuUuid)
+		IsuIconMap[name] = i.Image
+	}
+	IsuIconMapLock.Unlock()
+}
+
 // POST /initialize
 // サービスを初期化
 func postInitialize(c echo.Context) error {
@@ -334,6 +360,7 @@ func postInitialize(c echo.Context) error {
 		return c.NoContent(http.StatusInternalServerError)
 	}
 
+	updateIsuIconMap()
 	setlastIsuConditionMap()
 
 	return c.JSON(http.StatusOK, InitializeResponse{
@@ -628,6 +655,10 @@ func postIsu(c echo.Context) error {
 		c.Logger().Errorf("db error: %v", err)
 		return c.NoContent(http.StatusInternalServerError)
 	}
+	IsuIconMapLock.Lock()
+	name := fmt.Sprintf("%s__%s", jiaUserID, jiaIsuUUID)
+	IsuIconMap[name] = image
+	IsuIconMapLock.Unlock()
 
 	targetURL := getJIAServiceURL(tx) + "/api/activate"
 	body := JIAServiceRequest{postIsuConditionTargetBaseURL, jiaIsuUUID}
@@ -739,16 +770,12 @@ func getIsuIcon(c echo.Context) error {
 
 	jiaIsuUUID := c.Param("jia_isu_uuid")
 
-	var image []byte
-	err = db.Get(&image, "SELECT `image` FROM `isu` WHERE `jia_user_id` = ? AND `jia_isu_uuid` = ?",
-		jiaUserID, jiaIsuUUID)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return c.String(http.StatusNotFound, "not found: isu")
-		}
-
-		c.Logger().Errorf("db error: %v", err)
-		return c.NoContent(http.StatusInternalServerError)
+	IsuIconMapLock.RLock()
+	defer IsuIconMapLock.RUnlock()
+	name := fmt.Sprintf("%s__%s", jiaUserID, jiaIsuUUID)
+	image, ok := IsuIconMap[name]
+	if !ok {
+		return c.String(http.StatusNotFound, "not found: isu")
 	}
 
 	return c.Blob(http.StatusOK, "", image)
