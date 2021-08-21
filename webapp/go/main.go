@@ -15,6 +15,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/dgrijalva/jwt-go"
@@ -249,6 +250,14 @@ func main() {
 	db.SetConnMaxLifetime(120 * time.Second)
 	defer db.Close()
 
+	go func() {
+		for {
+			time.Sleep(time.Second)
+
+			BulkInsertIsuCondition()
+		}
+	}()
+
 	postIsuConditionTargetBaseURL = os.Getenv("POST_ISUCONDITION_TARGET_BASE_URL")
 	if postIsuConditionTargetBaseURL == "" {
 		e.Logger.Fatalf("missing: POST_ISUCONDITION_TARGET_BASE_URL")
@@ -256,6 +265,7 @@ func main() {
 	}
 
 	serverPort := fmt.Sprintf(":%v", getEnv("SERVER_APP_PORT", "3000"))
+
 	e.Logger.Fatal(e.Start(serverPort))
 }
 
@@ -1157,6 +1167,64 @@ func getTrend(c echo.Context) error {
 	return c.JSON(http.StatusOK, res)
 }
 
+type IsuConditionInsert struct {
+	jiaIsuUUID string
+	timestamp  time.Time
+	IsSitting  bool
+	Condition  string
+	message    string
+}
+
+var (
+	isuConditionQueue     []IsuConditionInsert
+	isuConditionQueueLock sync.Mutex
+)
+
+func BulkInsertIsuCondition() {
+	isuConditionQueueLock.Lock()
+	inserts := isuConditionQueue
+	isuConditionQueue = []IsuConditionInsert{}
+	isuConditionQueueLock.Unlock()
+
+	log.Print("BulkInsertIsuCondition: len(inserts) = %d", len(inserts))
+
+	if len(inserts) == 0 {
+		return
+	}
+
+	log.Print("BulkInsertIsuCondition: 頑張るぞー")
+
+	q := `
+				INSERT INTO isu_condition (jia_isu_uuid, timestamp, is_sitting, condition, message)
+				VALUES (?, ?, ?, ?, ?)
+			`
+	q, params, err := sqlx.In(q, inserts)
+	if err != nil {
+		log.Print("error", err)
+		return
+	}
+
+	tx := db.MustBegin()
+	if _, err := tx.Exec(q, params...); err != nil {
+		log.Print("error", err)
+		_ = tx.Rollback()
+
+		isuConditionQueueLock.Lock()
+		isuConditionQueue = append(isuConditionQueue, inserts...)
+		isuConditionQueueLock.Unlock()
+		return
+	}
+	if err := tx.Commit(); err != nil {
+		log.Print("error", err)
+		_ = tx.Rollback()
+
+		isuConditionQueueLock.Lock()
+		isuConditionQueue = append(isuConditionQueue, inserts...)
+		isuConditionQueueLock.Unlock()
+		return
+	}
+}
+
 // POST /api/condition/:jia_isu_uuid
 // ISUからのコンディションを受け取る
 func postIsuCondition(c echo.Context) error {
@@ -1180,15 +1248,8 @@ func postIsuCondition(c echo.Context) error {
 		return c.String(http.StatusBadRequest, "bad request body")
 	}
 
-	tx, err := db.Beginx()
-	if err != nil {
-		c.Logger().Errorf("db error: %v", err)
-		return c.NoContent(http.StatusInternalServerError)
-	}
-	defer tx.Rollback()
-
 	var count int
-	err = tx.Get(&count, "SELECT COUNT(*) FROM `isu` WHERE `jia_isu_uuid` = ?", jiaIsuUUID)
+	err = db.Get(&count, "SELECT COUNT(*) FROM `isu` WHERE `jia_isu_uuid` = ?", jiaIsuUUID)
 	if err != nil {
 		c.Logger().Errorf("db error: %v", err)
 		return c.NoContent(http.StatusInternalServerError)
@@ -1204,22 +1265,15 @@ func postIsuCondition(c echo.Context) error {
 			return c.String(http.StatusBadRequest, "bad request body")
 		}
 
-		_, err = tx.Exec(
-			"INSERT INTO `isu_condition`"+
-				"	(`jia_isu_uuid`, `timestamp`, `is_sitting`, `condition`, `message`)"+
-				"	VALUES (?, ?, ?, ?, ?)",
-			jiaIsuUUID, timestamp, cond.IsSitting, cond.Condition, cond.Message)
-		if err != nil {
-			c.Logger().Errorf("db error: %v", err)
-			return c.NoContent(http.StatusInternalServerError)
-		}
-
-	}
-
-	err = tx.Commit()
-	if err != nil {
-		c.Logger().Errorf("db error: %v", err)
-		return c.NoContent(http.StatusInternalServerError)
+		isuConditionQueueLock.Lock()
+		isuConditionQueue = append(isuConditionQueue, IsuConditionInsert{
+			jiaIsuUUID: jiaIsuUUID,
+			timestamp:  timestamp,
+			IsSitting:  cond.IsSitting,
+			Condition:  cond.Condition,
+			message:    cond.Message,
+		})
+		isuConditionQueueLock.Unlock()
 	}
 
 	return c.NoContent(http.StatusAccepted)
