@@ -365,18 +365,7 @@ func getlastConditionByJIAIsuUUID(c echo.Context, uuid string) *IsuCondition {
 		return &last_condition
 	}
 	lastIsuConditionMapLock.RUnlock()
-
-	var lastCondition IsuCondition
-	err := db.Get(&lastCondition, "SELECT * FROM `isu_condition` WHERE `jia_isu_uuid` = ? ORDER BY `timestamp` DESC LIMIT 1",
-		uuid)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil
-		} else {
-			c.Logger().Errorf("db error: %v", err)
-		}
-	}
-	return &lastCondition
+	return nil
 }
 
 // POST /api/auth
