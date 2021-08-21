@@ -15,6 +15,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/dgrijalva/jwt-go"
@@ -208,10 +209,10 @@ func init() {
 
 func main() {
 	e := echo.New()
-	e.Debug = true
-	e.Logger.SetLevel(log.DEBUG)
+	e.Debug = false
+	e.Logger.SetLevel(log.WARN)
 
-	e.Use(middleware.Logger())
+	//e.Use(middleware.Logger())
 	e.Use(middleware.Recover())
 
 	e.POST("/initialize", postInitialize)
@@ -249,6 +250,14 @@ func main() {
 	db.SetConnMaxLifetime(120 * time.Second)
 	defer db.Close()
 
+	go func() {
+		for {
+			time.Sleep(time.Millisecond * 500)
+
+			BulkInsertIsuCondition()
+		}
+	}()
+
 	postIsuConditionTargetBaseURL = os.Getenv("POST_ISUCONDITION_TARGET_BASE_URL")
 	if postIsuConditionTargetBaseURL == "" {
 		e.Logger.Fatalf("missing: POST_ISUCONDITION_TARGET_BASE_URL")
@@ -256,6 +265,7 @@ func main() {
 	}
 
 	serverPort := fmt.Sprintf(":%v", getEnv("SERVER_APP_PORT", "3000"))
+
 	e.Logger.Fatal(e.Start(serverPort))
 }
 
@@ -1157,13 +1167,74 @@ func getTrend(c echo.Context) error {
 	return c.JSON(http.StatusOK, res)
 }
 
+type IsuConditionInsert struct {
+	JiaIsuUUID string    `db:"jia_isu_uuid"`
+	Timestamp  time.Time `db:"timestamp"`
+	IsSitting  bool      `db:"is_sitting"`
+	Condition  string    `db:"condition"`
+	Message    string    `db:"message"`
+}
+
+var (
+	isuConditionQueue     []IsuConditionInsert
+	isuConditionQueueLock sync.Mutex
+)
+
+func BulkInsertIsuCondition() {
+	isuConditionQueueLock.Lock()
+	inserts := isuConditionQueue
+	isuConditionQueue = []IsuConditionInsert{}
+	isuConditionQueueLock.Unlock()
+
+	log.Printf("BulkInsertIsuCondition: len(inserts) = %d", len(inserts))
+
+	if len(inserts) == 0 {
+		return
+	}
+
+	log.Print("BulkInsertIsuCondition: 頑張るぞー")
+
+	insertMap := make([]map[string]interface{}, len(inserts))
+	for i, v := range inserts {
+		insertMap[i] = map[string]interface{}{
+			"JiaIsuUUID": v.JiaIsuUUID,
+			"Timestamp":  v.Timestamp,
+			"IsSitting":  v.IsSitting,
+			"Condition":  v.Condition,
+			"Message":    v.Message,
+		}
+	}
+
+	q := "INSERT INTO isu_condition (`jia_isu_uuid`, `timestamp`, `is_sitting`, `condition`, `message`) VALUES (:JiaIsuUUID, :Timestamp, :IsSitting, :Condition, :Message);"
+
+	tx := db.MustBegin()
+	if _, err := tx.NamedExec(q, insertMap); err != nil {
+		log.Print("error", err)
+		_ = tx.Rollback()
+
+		isuConditionQueueLock.Lock()
+		isuConditionQueue = append(isuConditionQueue, inserts...)
+		isuConditionQueueLock.Unlock()
+		return
+	}
+	if err := tx.Commit(); err != nil {
+		log.Print("error", err)
+		_ = tx.Rollback()
+
+		isuConditionQueueLock.Lock()
+		isuConditionQueue = append(isuConditionQueue, inserts...)
+		isuConditionQueueLock.Unlock()
+		return
+	}
+}
+
 // POST /api/condition/:jia_isu_uuid
 // ISUからのコンディションを受け取る
 func postIsuCondition(c echo.Context) error {
 	// TODO: 一定割合リクエストを落としてしのぐようにしたが、本来は全量さばけるようにすべき
 	dropProbability := 0.9
 	if rand.Float64() <= dropProbability {
-		c.Logger().Warnf("drop post isu condition request")
+		c.Logger().Info("drop post isu condition request")
 		return c.NoContent(http.StatusAccepted)
 	}
 
@@ -1180,15 +1251,8 @@ func postIsuCondition(c echo.Context) error {
 		return c.String(http.StatusBadRequest, "bad request body")
 	}
 
-	tx, err := db.Beginx()
-	if err != nil {
-		c.Logger().Errorf("db error: %v", err)
-		return c.NoContent(http.StatusInternalServerError)
-	}
-	defer tx.Rollback()
-
 	var count int
-	err = tx.Get(&count, "SELECT COUNT(*) FROM `isu` WHERE `jia_isu_uuid` = ?", jiaIsuUUID)
+	err = db.Get(&count, "SELECT COUNT(*) FROM `isu` WHERE `jia_isu_uuid` = ?", jiaIsuUUID)
 	if err != nil {
 		c.Logger().Errorf("db error: %v", err)
 		return c.NoContent(http.StatusInternalServerError)
@@ -1204,22 +1268,15 @@ func postIsuCondition(c echo.Context) error {
 			return c.String(http.StatusBadRequest, "bad request body")
 		}
 
-		_, err = tx.Exec(
-			"INSERT INTO `isu_condition`"+
-				"	(`jia_isu_uuid`, `timestamp`, `is_sitting`, `condition`, `message`)"+
-				"	VALUES (?, ?, ?, ?, ?)",
-			jiaIsuUUID, timestamp, cond.IsSitting, cond.Condition, cond.Message)
-		if err != nil {
-			c.Logger().Errorf("db error: %v", err)
-			return c.NoContent(http.StatusInternalServerError)
-		}
-
-	}
-
-	err = tx.Commit()
-	if err != nil {
-		c.Logger().Errorf("db error: %v", err)
-		return c.NoContent(http.StatusInternalServerError)
+		isuConditionQueueLock.Lock()
+		isuConditionQueue = append(isuConditionQueue, IsuConditionInsert{
+			JiaIsuUUID: jiaIsuUUID,
+			Timestamp:  timestamp,
+			IsSitting:  cond.IsSitting,
+			Condition:  cond.Condition,
+			Message:    cond.Message,
+		})
+		isuConditionQueueLock.Unlock()
 	}
 
 	return c.NoContent(http.StatusAccepted)
