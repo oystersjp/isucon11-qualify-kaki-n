@@ -50,9 +50,9 @@ var (
 
 	jiaJWTSigningKey *ecdsa.PublicKey
 
-	postIsuConditionTargetBaseURL string // JIAへのactivate時に登録する，ISUがconditionを送る先のURL
-	lastIsuConditionMap           map[string]IsuCondition{}
-	lastIsuConditionMapLock	sync.RWMutex{}
+	postIsuConditionTargetBaseURL string
+	lastIsuConditionMap           = map[string]IsuCondition{}
+	lastIsuConditionMapLock       = sync.RWMutex{}
 )
 
 type Config struct {
@@ -355,28 +355,17 @@ func postInitialize(c echo.Context) error {
 func setlastIsuConditionMap() {
 	lastIsuConditionMapLock.Lock()
 	defer lastIsuConditionMapLock.Unlock()
-	
-	isuConditionList = map[string]IsuCondition{}
+
+	lastIsuConditionMap = map[string]IsuCondition{}
 
 	var lastConditions []IsuCondition
-	q = "
-select
-DISTINCT 
-first_value(isu_condition.id) over (partition by isu_condition.jia_isu_uuid ORDER BY isu_condition.timestamp DESC) AS `id`,
-first_value(isu_condition.jia_isu_uuid) over (partition by isu_condition.jia_isu_uuid ORDER BY isu_condition.timestamp DESC) AS `jia_isu_uuid`,
-first_value(isu_condition.timestamp) over (partition by isu_condition.jia_isu_uuid ORDER BY isu_condition.timestamp DESC) AS `timestamp`,
-first_value(isu_condition.is_sitting) over (partition by isu_condition.jia_isu_uuid ORDER BY isu_condition.timestamp DESC) AS `is_sitting`,
-first_value(isu_condition.`condition`) over (partition by isu_condition.jia_isu_uuid ORDER BY isu_condition.timestamp DESC) AS `condition`,
-first_value(isu_condition.message) over (partition by isu_condition.jia_isu_uuid ORDER BY isu_condition.timestamp DESC) AS `message`,
-first_value(isu_condition.created_at) over (partition by isu_condition.jia_isu_uuid ORDER BY isu_condition.timestamp DESC) AS `created_at`
-FROM isu_condition;
-"
+	q := "select DISTINCT first_value(isu_condition.id) over (partition by isu_condition.jia_isu_uuid ORDER BY isu_condition.timestamp DESC) AS `id`, first_value(isu_condition.jia_isu_uuid) over (partition by isu_condition.jia_isu_uuid ORDER BY isu_condition.timestamp DESC) AS `jia_isu_uuid`, first_value(isu_condition.timestamp) over (partition by isu_condition.jia_isu_uuid ORDER BY isu_condition.timestamp DESC) AS `timestamp`, first_value(isu_condition.is_sitting) over (partition by isu_condition.jia_isu_uuid ORDER BY isu_condition.timestamp DESC) AS `is_sitting`, first_value(isu_condition.`condition`) over (partition by isu_condition.jia_isu_uuid ORDER BY isu_condition.timestamp DESC) AS `condition`, first_value(isu_condition.message) over (partition by isu_condition.jia_isu_uuid ORDER BY isu_condition.timestamp DESC) AS `message`, first_value(isu_condition.created_at) over (partition by isu_condition.jia_isu_uuid ORDER BY isu_condition.timestamp DESC) AS `created_at` FROM isu_condition"
 
-	if err = db.Get(&lastConditions, q); err != nil {
-		c.Logger().Errorf("db error : %v", err)
+	if err := db.Get(&lastConditions, q); err != nil {
+		log.Print("error", err)
 	}
-	for _, ic := range lastConditions{
-		isuConditionList[ic.jia_isu_uuid] = ic
+	for _, ic := range lastConditions {
+		lastIsuConditionMap[ic.JIAIsuUUID] = ic
 	}
 }
 
@@ -1227,7 +1216,7 @@ func BulkInsertIsuCondition() {
 	log.Print("BulkInsertIsuCondition: 頑張るぞー")
 
 	insertMap := make([]map[string]interface{}, len(inserts))
-	uuids = []int
+	var uuids []string
 	for i, v := range inserts {
 		insertMap[i] = map[string]interface{}{
 			"JiaIsuUUID": v.JiaIsuUUID,
@@ -1263,28 +1252,18 @@ func BulkInsertIsuCondition() {
 	}
 }
 
-func updatelastIsuConditionMap(uuids []int) {
+func updatelastIsuConditionMap(uuids []string) {
 	lastIsuConditionMapLock.Lock()
 	defer lastIsuConditionMapLock.Unlock()
 
 	var lastConditions []IsuCondition
-	q = "
-select
-DISTINCT 
-first_value(isu_condition.id) over (partition by isu_condition.jia_isu_uuid ORDER BY isu_condition.timestamp DESC) AS `id`,
-first_value(isu_condition.jia_isu_uuid) over (partition by isu_condition.jia_isu_uuid ORDER BY isu_condition.timestamp DESC) AS `jia_isu_uuid`,
-first_value(isu_condition.timestamp) over (partition by isu_condition.jia_isu_uuid ORDER BY isu_condition.timestamp DESC) AS `timestamp`,
-first_value(isu_condition.is_sitting) over (partition by isu_condition.jia_isu_uuid ORDER BY isu_condition.timestamp DESC) AS `is_sitting`,
-first_value(isu_condition.`condition`) over (partition by isu_condition.jia_isu_uuid ORDER BY isu_condition.timestamp DESC) AS `condition`,
-first_value(isu_condition.message) over (partition by isu_condition.jia_isu_uuid ORDER BY isu_condition.timestamp DESC) AS `message`,
-first_value(isu_condition.created_at) over (partition by isu_condition.jia_isu_uuid ORDER BY isu_condition.timestamp DESC) AS `created_at`
-FROM isu_condition where jia_isu_uuid in (?)"
-	
+	q := "select DISTINCT first_value(isu_condition.id) over (partition by isu_condition.jia_isu_uuid ORDER BY isu_condition.timestamp DESC) AS `id`, first_value(isu_condition.jia_isu_uuid) over (partition by isu_condition.jia_isu_uuid ORDER BY isu_condition.timestamp DESC) AS `jia_isu_uuid`, first_value(isu_condition.timestamp) over (partition by isu_condition.jia_isu_uuid ORDER BY isu_condition.timestamp DESC) AS `timestamp`, first_value(isu_condition.is_sitting) over (partition by isu_condition.jia_isu_uuid ORDER BY isu_condition.timestamp DESC) AS `is_sitting`, first_value(isu_condition.`condition`) over (partition by isu_condition.jia_isu_uuid ORDER BY isu_condition.timestamp DESC) AS `condition`, first_value(isu_condition.message) over (partition by isu_condition.jia_isu_uuid ORDER BY isu_condition.timestamp DESC) AS `message`, first_value(isu_condition.created_at) over (partition by isu_condition.jia_isu_uuid ORDER BY isu_condition.timestamp DESC) AS `created_at` FROM isu_condition where jia_isu_uuid in (?)"
+
 	if err := db.Select(&lastConditions, q, uuids); err != nil {
 		log.Print("error", err)
 	}
-	for _, ic := range lastConditions{
-		isuConditionList[ic.jia_isu_uuid] = ic
+	for _, ic := range lastConditions {
+		lastIsuConditionMap[ic.JIAIsuUUID] = ic
 	}
 }
 
