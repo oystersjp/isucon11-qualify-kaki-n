@@ -332,6 +332,24 @@ func postInitialize(c echo.Context) error {
 		return c.NoContent(http.StatusInternalServerError)
 	}
 
+	type icon struct {
+		JiaUserId  string `db:"user_id"`
+		JiaIsuUuid string `db:"jia_isu_uuid"`
+		Image      []byte `db:"byte"`
+	}
+	var icons []icon
+	if err := db.Select(&icons, "SELECT `jia_user_id`, `jia_isu_uuid`, `image` FROM `isu`"); err != nil {
+		return err
+	}
+
+	for _, i := range icons {
+		fileName := fmt.Sprintf("./icons/%s__%s", i.JiaUserId, i.JiaIsuUuid)
+		if err := ioutil.WriteFile(fileName, i.Image, 0666); err != nil {
+			c.Logger().Errorf("write file error : %v", err)
+			return c.NoContent(http.StatusInternalServerError)
+		}
+	}
+
 	return c.JSON(http.StatusOK, InitializeResponse{
 		Language: "go",
 	})
@@ -591,6 +609,12 @@ func postIsu(c echo.Context) error {
 		return c.NoContent(http.StatusInternalServerError)
 	}
 
+	fileName := fmt.Sprintf("./icons/%s__%s", jiaUserID, jiaIsuUUID)
+	if err := ioutil.WriteFile(fileName, image, 0666); err != nil {
+		c.Logger().Errorf("write file error : %v", err)
+		return c.NoContent(http.StatusInternalServerError)
+	}
+
 	targetURL := getJIAServiceURL(tx) + "/api/activate"
 	body := JIAServiceRequest{postIsuConditionTargetBaseURL, jiaIsuUUID}
 	bodyJSON, err := json.Marshal(body)
@@ -701,19 +725,14 @@ func getIsuIcon(c echo.Context) error {
 
 	jiaIsuUUID := c.Param("jia_isu_uuid")
 
-	var image []byte
-	err = db.Get(&image, "SELECT `image` FROM `isu` WHERE `jia_user_id` = ? AND `jia_isu_uuid` = ?",
-		jiaUserID, jiaIsuUUID)
+	fileName := fmt.Sprintf("./icons/%s__%s", jiaUserID, jiaIsuUUID)
+	icon, err := ioutil.ReadFile(fileName)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return c.String(http.StatusNotFound, "not found: isu")
-		}
-
-		c.Logger().Errorf("db error: %v", err)
+		c.Logger().Errorf("icon read error: %v", err)
 		return c.NoContent(http.StatusInternalServerError)
 	}
 
-	return c.Blob(http.StatusOK, "", image)
+	return c.Blob(http.StatusOK, "", icon)
 }
 
 // GET /api/isu/:jia_isu_uuid/graph
