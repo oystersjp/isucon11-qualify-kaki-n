@@ -1281,11 +1281,11 @@ first_value(isu_condition.created_at) over (partition by isu_condition.jia_isu_u
 FROM isu_condition where jia_isu_uuid in (?)"
 	
 	if err := db.Select(&lastConditions, q, uuids); err != nil {
-			log.Print("error", err)
-		}
-		for _, ic := range lastConditions{
-			isuConditionList[ic.jia_isu_uuid] = ic
-		}
+		log.Print("error", err)
+	}
+	for _, ic := range lastConditions{
+		isuConditionList[ic.jia_isu_uuid] = ic
+	}
 }
 
 // POST /api/condition/:jia_isu_uuid
