@@ -332,6 +332,15 @@ func postInitialize(c echo.Context) error {
 		return c.NoContent(http.StatusInternalServerError)
 	}
 
+	if err := os.RemoveAll("./icons/"); err != nil {
+		c.Logger().Errorf("RemoveAll : %v", err)
+		return c.NoContent(http.StatusInternalServerError)
+	}
+	if err := os.Mkdir("./icons", 0777); err != nil {
+		c.Logger().Errorf("Mkdir : %v", err)
+		return c.NoContent(http.StatusInternalServerError)
+	}
+
 	type icon struct {
 		JiaUserId  string `db:"jia_user_id"`
 		JiaIsuUuid string `db:"jia_isu_uuid"`
