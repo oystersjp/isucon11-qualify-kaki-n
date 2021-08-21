@@ -729,8 +729,7 @@ func getIsuIcon(c echo.Context) error {
 	fileName := fmt.Sprintf("./icons/%s__%s", jiaUserID, jiaIsuUUID)
 	icon, err := ioutil.ReadFile(fileName)
 	if err != nil {
-		c.Logger().Errorf("icon read error: %v", err)
-		return c.NoContent(http.StatusInternalServerError)
+		return c.String(http.StatusNotFound, "not found: isu")
 	}
 
 	return c.Blob(http.StatusOK, "", icon)
