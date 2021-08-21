@@ -359,7 +359,20 @@ func setlastIsuConditionMap() {
 	isuConditionList = map[string]IsuCondition{}
 
 	var lastConditions []IsuCondition
-	if err = db.Get(&lastConditions, "SELECT * FROM `isu_condition`"); err != nil {
+	q = "
+select
+DISTINCT 
+first_value(isu_condition.id) over (partition by isu_condition.jia_isu_uuid ORDER BY isu_condition.timestamp DESC) AS `id`,
+first_value(isu_condition.jia_isu_uuid) over (partition by isu_condition.jia_isu_uuid ORDER BY isu_condition.timestamp DESC) AS `jia_isu_uuid`,
+first_value(isu_condition.timestamp) over (partition by isu_condition.jia_isu_uuid ORDER BY isu_condition.timestamp DESC) AS `timestamp`,
+first_value(isu_condition.is_sitting) over (partition by isu_condition.jia_isu_uuid ORDER BY isu_condition.timestamp DESC) AS `is_sitting`,
+first_value(isu_condition.`condition`) over (partition by isu_condition.jia_isu_uuid ORDER BY isu_condition.timestamp DESC) AS `condition`,
+first_value(isu_condition.message) over (partition by isu_condition.jia_isu_uuid ORDER BY isu_condition.timestamp DESC) AS `message`,
+first_value(isu_condition.created_at) over (partition by isu_condition.jia_isu_uuid ORDER BY isu_condition.timestamp DESC) AS `created_at`
+FROM isu_condition limit 3;
+"
+
+	if err = db.Get(&lastConditions, q); err != nil {
 		c.Logger().Errorf("db error : %v", err)
 	}
 	for _, ic := range lastConditions{
