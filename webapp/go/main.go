@@ -362,7 +362,6 @@ func getlastConditionByJIAIsuUUID(c echo.Context, uuid string) *IsuCondition {
 	lastIsuConditionMapLock.RLock()
 	if last_condition, ok := lastIsuConditionMap[uuid]; ok {
 		lastIsuConditionMapLock.RUnlock()
-		log.Printf("============================" + last_condition.Condition + "============================")
 		return &last_condition
 	}
 	lastIsuConditionMapLock.RUnlock()
@@ -370,7 +369,6 @@ func getlastConditionByJIAIsuUUID(c echo.Context, uuid string) *IsuCondition {
 	var lastCondition IsuCondition
 	err := db.Get(&lastCondition, "SELECT * FROM `isu_condition` WHERE `jia_isu_uuid` = ? ORDER BY `timestamp` DESC LIMIT 1",
 		uuid)
-	log.Printf("++++++++++++++++++++++++++++++++++" + lastCondition.Condition + "++++++++++++++++++++++++++++++++++")
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil
