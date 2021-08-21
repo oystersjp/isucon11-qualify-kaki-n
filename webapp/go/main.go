@@ -324,7 +324,7 @@ func updateIsuIconMap() {
 		return
 	}
 	IsuIconMapLock.Lock()
-	IsuIconMap := map[string][]byte{}
+	IsuIconMap = map[string][]byte{}
 	for _, i := range icons {
 		name := fmt.Sprintf("./icons/%s__%s", i.JiaUserId, i.JiaIsuUuid)
 		IsuIconMap[name] = i.Image
