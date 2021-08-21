@@ -1168,11 +1168,11 @@ func getTrend(c echo.Context) error {
 }
 
 type IsuConditionInsert struct {
-	jiaIsuUUID string
-	timestamp  time.Time
-	IsSitting  bool
-	Condition  string
-	message    string
+	jiaIsuUUID string    `db:"jia_isu_uuid"`
+	timestamp  time.Time `db:"timestamp"`
+	IsSitting  bool      `db:"is_sitting"`
+	Condition  string    `db:"condition"`
+	message    string    `db:"message"`
 }
 
 var (
@@ -1186,7 +1186,7 @@ func BulkInsertIsuCondition() {
 	isuConditionQueue = []IsuConditionInsert{}
 	isuConditionQueueLock.Unlock()
 
-	log.Print("BulkInsertIsuCondition: len(inserts) = %d", len(inserts))
+	log.Printf("BulkInsertIsuCondition: len(inserts) = %d", len(inserts))
 
 	if len(inserts) == 0 {
 		return
