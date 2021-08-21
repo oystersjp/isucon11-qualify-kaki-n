@@ -23,9 +23,9 @@ CREATE TABLE `isu_condition` (
   `condition` VARCHAR(255) NOT NULL,
   `message` VARCHAR(255) NOT NULL,
   `created_at` DATETIME(6) DEFAULT CURRENT_TIMESTAMP(6),
-  `minus_timestamp` int AS (UNIX_TIMESTAMP(timestamp)*(-1)) STORED,
   PRIMARY KEY(`id`)
 ) ENGINE=InnoDB DEFAULT CHARACTER SET=utf8mb4;
+alter table isu_condition add column minus_timestamp int as (UNIX_TIMESTAMP(timestamp)*(-1)) stored not null;
 alter table isu_condition add index (jia_isu_uuid);
 alter table isu_condition add index (jia_isu_uuid, minus_timestamp);
 
