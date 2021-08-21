@@ -210,7 +210,7 @@ func init() {
 func main() {
 	e := echo.New()
 	e.Debug = false
-	e.Logger.SetLevel(log.DEBUG)
+	e.Logger.SetLevel(log.WARN)
 
 	//e.Use(middleware.Logger())
 	e.Use(middleware.Recover())
@@ -1168,11 +1168,11 @@ func getTrend(c echo.Context) error {
 }
 
 type IsuConditionInsert struct {
-	jiaIsuUUID string    `db:"jia_isu_uuid"`
-	timestamp  time.Time `db:"timestamp"`
+	JiaIsuUUID string    `db:"jia_isu_uuid"`
+	Timestamp  time.Time `db:"timestamp"`
 	IsSitting  bool      `db:"is_sitting"`
 	Condition  string    `db:"condition"`
-	message    string    `db:"message"`
+	Message    string    `db:"message"`
 }
 
 var (
@@ -1196,7 +1196,7 @@ func BulkInsertIsuCondition() {
 
 	q := `
 		INSERT INTO isu_condition (jia_isu_uuid, timestamp, is_sitting, condition, message)
-		VALUES (:jia_isu_uuid, :timestamp, :is_sitting, :condition, :message)
+		VALUES (:JiaIsuUUID, :Timestamp, :IsSitting, :Condition, :Message)
 	`
 
 	tx := db.MustBegin()
@@ -1226,7 +1226,7 @@ func postIsuCondition(c echo.Context) error {
 	// TODO: 一定割合リクエストを落としてしのぐようにしたが、本来は全量さばけるようにすべき
 	dropProbability := 0.9
 	if rand.Float64() <= dropProbability {
-		c.Logger().Warnf("drop post isu condition request")
+		c.Logger().Info("drop post isu condition request")
 		return c.NoContent(http.StatusAccepted)
 	}
 
@@ -1262,11 +1262,11 @@ func postIsuCondition(c echo.Context) error {
 
 		isuConditionQueueLock.Lock()
 		isuConditionQueue = append(isuConditionQueue, IsuConditionInsert{
-			jiaIsuUUID: jiaIsuUUID,
-			timestamp:  timestamp,
+			JiaIsuUUID: jiaIsuUUID,
+			Timestamp:  timestamp,
 			IsSitting:  cond.IsSitting,
 			Condition:  cond.Condition,
-			message:    cond.Message,
+			Message:    cond.Message,
 		})
 		isuConditionQueueLock.Unlock()
 	}
