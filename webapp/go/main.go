@@ -271,8 +271,9 @@ func main() {
 		return
 	}
 
-	serverPort := fmt.Sprintf(":%v", getEnv("SERVER_APP_PORT", "3000"))
+	updateIsuIconMap()
 
+	serverPort := fmt.Sprintf(":%v", getEnv("SERVER_APP_PORT", "3000"))
 	e.Logger.Fatal(e.Start(serverPort))
 }
 
@@ -311,6 +312,26 @@ func getJIAServiceURL(tx *sqlx.Tx) string {
 	return config.URL
 }
 
+func updateIsuIconMap() {
+	type icon struct {
+		JiaUserId  string `db:"jia_user_id"`
+		JiaIsuUuid string `db:"jia_isu_uuid"`
+		Image      []byte `db:"image"`
+	}
+	var icons []icon
+	if err := db.Select(&icons, "SELECT `jia_user_id`, `jia_isu_uuid`, `image` FROM `isu`"); err != nil {
+		c.Logger().Errorf("db error : %v", err)
+		return c.NoContent(http.StatusInternalServerError)
+	}
+	IsuIconMapLock.Lock()
+	IsuIconMap := map[string][]byte{}
+	for _, i := range icons {
+		name := fmt.Sprintf("./icons/%s__%s", i.JiaUserId, i.JiaIsuUuid)
+		IsuIconMap[name] = i.Image
+	}
+	IsuIconMapLock.Unlock()
+}
+
 // POST /initialize
 // サービスを初期化
 func postInitialize(c echo.Context) error {
@@ -339,24 +360,8 @@ func postInitialize(c echo.Context) error {
 		return c.NoContent(http.StatusInternalServerError)
 	}
 
+	updateIsuIconMap()
 	setlastIsuConditionMap()
-
-	type icon struct {
-		JiaUserId  string `db:"jia_user_id"`
-		JiaIsuUuid string `db:"jia_isu_uuid"`
-		Image      []byte `db:"image"`
-	}
-	var icons []icon
-	if err := db.Select(&icons, "SELECT `jia_user_id`, `jia_isu_uuid`, `image` FROM `isu`"); err != nil {
-		c.Logger().Errorf("db error : %v", err)
-		return c.NoContent(http.StatusInternalServerError)
-	}
-	IsuIconMapLock.Lock()
-	for _, i := range icons {
-		name := fmt.Sprintf("./icons/%s__%s", i.JiaUserId, i.JiaIsuUuid)
-		IsuIconMap[name] = i.Image
-	}
-	IsuIconMapLock.Unlock()
 
 	return c.JSON(http.StatusOK, InitializeResponse{
 		Language: "go",
