@@ -25,7 +25,7 @@ CREATE TABLE `isu_condition` (
   `created_at` DATETIME(6) DEFAULT CURRENT_TIMESTAMP(6),
   PRIMARY KEY(`id`)
 ) ENGINE=InnoDB DEFAULT CHARACTER SET=utf8mb4;
-alter table isu_condition add column minus_timestamp int as (UNIX_TIMESTAMP(timestamp)*(-1)) stored not null;
+alter table isu_condition add column minus_timestamp bigint as (TIMESTAMPDIFF(MICROSECOND, timestamp, '3000-01-01 00:00:00')) stored not null;
 alter table isu_condition add index (jia_isu_uuid);
 alter table isu_condition add index (jia_isu_uuid, minus_timestamp);
 
