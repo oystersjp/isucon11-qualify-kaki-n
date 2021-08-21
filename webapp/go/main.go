@@ -1234,6 +1234,7 @@ func BulkInsertIsuCondition() {
 		isuConditionQueueLock.Lock()
 		isuConditionQueue = append(isuConditionQueue, inserts...)
 		isuConditionQueueLock.Unlock()
+		setlastIsuConditionMap()
 		return
 	}
 	if err := tx.Commit(); err != nil {
