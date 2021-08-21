@@ -358,6 +358,27 @@ func setlastIsuConditionMap() {
 	}
 }
 
+func getlastConditionByJIAIsuUUID(c echo.Context, uuid string) *IsuCondition {
+	lastIsuConditionMapLock.RLock()
+	if last_condition, ok := lastIsuConditionMap[uuid]; ok {
+		lastIsuConditionMapLock.RUnlock()
+		return &last_condition
+	}
+	lastIsuConditionMapLock.RUnlock()
+
+	var lastCondition IsuCondition
+	err := db.Get(&lastCondition, "SELECT * FROM `isu_condition` WHERE `jia_isu_uuid` = ? ORDER BY `timestamp` DESC LIMIT 1",
+		uuid)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return &IsuCondition{}
+		} else {
+			c.Logger().Errorf("db error: %v", err)
+		}
+	}
+	return &lastCondition
+}
+
 // POST /api/auth
 // サインアップ・サインイン
 func postAuthentication(c echo.Context) error {
@@ -495,15 +516,9 @@ func getIsuList(c echo.Context) error {
 	for _, isu := range isuList {
 		var lastCondition IsuCondition
 		foundLastCondition := true
-		err = tx.Get(&lastCondition, "SELECT * FROM `isu_condition` WHERE `jia_isu_uuid` = ? ORDER BY `timestamp` DESC LIMIT 1",
-			isu.JIAIsuUUID)
-		if err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				foundLastCondition = false
-			} else {
-				c.Logger().Errorf("db error: %v", err)
-				return c.NoContent(http.StatusInternalServerError)
-			}
+		lastCondition = getlastConditionByJIAIsuUUID(c, isu.JIAIsuUUID)
+		if lastCondition == nil {
+			foundLastCondition = false
 		}
 
 		var formattedCondition *GetIsuConditionResponse
