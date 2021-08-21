@@ -371,7 +371,7 @@ func getlastConditionByJIAIsuUUID(c echo.Context, uuid string) *IsuCondition {
 		uuid)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return &IsuCondition{}
+			return nil
 		} else {
 			c.Logger().Errorf("db error: %v", err)
 		}
