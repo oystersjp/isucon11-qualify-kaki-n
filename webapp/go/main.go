@@ -252,7 +252,7 @@ func main() {
 
 	go func() {
 		for {
-			time.Sleep(time.Second)
+			time.Sleep(time.Millisecond * 500)
 
 			BulkInsertIsuCondition()
 		}
