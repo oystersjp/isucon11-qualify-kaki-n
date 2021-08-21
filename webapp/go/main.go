@@ -473,7 +473,7 @@ func getIsuList(c echo.Context) error {
 	for _, isu := range isuList {
 		var lastCondition IsuCondition
 		foundLastCondition := true
-		err = tx.Get(&lastCondition, "SELECT id, jia_isu_uuid, timestamp, is_sitting, condition, message, created_at FROM `isu_condition` WHERE `jia_isu_uuid` = ? ORDER BY `timestamp` DESC LIMIT 1",
+		err = tx.Get(&lastCondition, "SELECT id, jia_isu_uuid, timestamp, is_sitting, condition, message, created_at FROM `isu_condition` WHERE `jia_isu_uuid` = ? ORDER BY `minus_timestamp` ASC LIMIT 1",
 			isu.JIAIsuUUID)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
@@ -1011,7 +1011,7 @@ func getIsuConditionsFromDB(db *sqlx.DB, jiaIsuUUID string, endTime time.Time, c
 		err = db.Select(&conditions,
 			"SELECT id, jia_isu_uuid, timestamp, is_sitting, condition, message, created_at FROM `isu_condition` WHERE `jia_isu_uuid` = ?"+
 				"	AND `timestamp` < ?"+
-				"	ORDER BY `timestamp` DESC",
+				"	ORDER BY `minus_timestamp` ASC",
 			jiaIsuUUID, endTime,
 		)
 	} else {
@@ -1019,7 +1019,7 @@ func getIsuConditionsFromDB(db *sqlx.DB, jiaIsuUUID string, endTime time.Time, c
 			"SELECT id, jia_isu_uuid, timestamp, is_sitting, condition, message, created_at FROM `isu_condition` WHERE `jia_isu_uuid` = ?"+
 				"	AND `timestamp` < ?"+
 				"	AND ? <= `timestamp`"+
-				"	ORDER BY `timestamp` DESC",
+				"	ORDER BY `minus_timestamp` ASC",
 			jiaIsuUUID, endTime, startTime,
 		)
 	}
@@ -1103,7 +1103,7 @@ func getTrend(c echo.Context) error {
 		for _, isu := range isuList {
 			conditions := []IsuCondition{}
 			err = db.Select(&conditions,
-				"SELECT id, jia_isu_uuid, timestamp, is_sitting, condition, message, created_at FROM `isu_condition` WHERE `jia_isu_uuid` = ? ORDER BY timestamp DESC",
+				"SELECT id, jia_isu_uuid, timestamp, is_sitting, condition, message, created_at FROM `isu_condition` WHERE `jia_isu_uuid` = ? ORDER BY minus_timestamp ASC",
 				isu.JIAIsuUUID,
 			)
 			if err != nil {
